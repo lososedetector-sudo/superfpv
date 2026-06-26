@@ -246,36 +246,30 @@ if SERVER then
     end
     self:setPropellerVelocity(self.power * 100)
 
-    -- ===== Angular control (gimbal‑lock free) =====
-    local yawSensitivity   = 4
-    local pitchSensitivity = 4
-    local rollSensitivity  = 5
-    local rollStiffness    = 2
+    -- Sensitivity
+    local sensitivity = 4
+    local rollSensitivity = 5
 
-    local mousePitch = self.mouseAngle.p
-    local mouseYaw   = self.mouseAngle.y
+    -- Mouse delta (pitch, yaw)
+    local mouseDelta = self.mouseAngle   -- Angle(pitch, yaw, 0)
     self.mouseAngle = Angle()
 
+    -- Manual roll from A/D
     local rollInput = self:buttonAxis(IN_KEY.MOVELEFT, IN_KEY.MOVERIGHT) * rollSensitivity
 
-    local droneRight   = self.drone:getRight()
-    local droneForward = self.drone:getForward()
-    local worldUp      = Vector(0, 0, 1)
+    -- Current drone angles
+    local curAng = self.drone:getAngles()
 
-    -- Roll error using manual dot product
-    local dot = droneRight.x * worldUp.x + droneRight.y * worldUp.y + droneRight.z * worldUp.z
-    local rollErrorDeg = math.deg(math.asin(math.clamp(dot, -1, 1)))
-    local rollCorrection = -rollErrorDeg * rollStiffness
+    -- Target orientation: apply mouse pitch/yaw, then force roll to be exactly the manual input (absolute roll)
+    local targetAng = curAng + mouseDelta
+    targetAng.r = rollInput   -- rollInput is the desired absolute roll (when no key, it’s 0 → stabilises)
 
-    -- Build desired angular velocity (world space)
-    local angVel = Vector(0, 0, mouseYaw * yawSensitivity)
-    angVel = angVel + droneRight * (mousePitch * pitchSensitivity)
-    angVel = angVel + droneForward * (rollInput + rollCorrection)
+    -- Calculate angular velocity to reach the target orientation (same method as original)
+    local deltaAngle = targetAng - curAng
+    local angVel = deltaAngle:getQuaternion():getRotationVector() * sensitivity
+    angVel = angVel - self.phys:getAngleVelocity() / 5
 
-    local currentAngVel = self.phys:getAngleVelocity()
-    local finalAngVel = angVel - currentAngVel / 5
-
-    self.phys:addAngleVelocity(finalAngVel)
+    self.phys:addAngleVelocity(angVel)
 
     hook.run("FPVDroneThink", self)
 end
