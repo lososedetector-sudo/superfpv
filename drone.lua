@@ -153,9 +153,9 @@ if SERVER then
 
             -- ...and mouse coordinates
             net.receive("MouseStream" .. index, function()
-    obj.mouseAngle = Angle(net.readInt(8), net.readInt(8), 0)       -- absolute yaw target, persists across ticks
-            end)
-        end
+        obj.mouseAngle = Angle(net.readInt(8), net.readInt(8), 0)
+    end)
+end
 
         return obj
     end
