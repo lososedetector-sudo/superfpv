@@ -230,52 +230,63 @@ if SERVER then
 
     ---Drone think hook, substantially movement
     function Drone:Think()
-        -- Damage in water and losing controls
-        if self.drone:getWaterLevel() >= 2 then
-            self.drone:applyDamage(1, self.drone, self.drone)
-            return
-        end
-        if self.driver and isValid(self.driver) and self.driver:isAlive() then
-            -- Add to velocity value from buttons, multiplied by 5 (comments are very funny and interesting...)
-            local addToVelocity = self:buttonAxis(IN_KEY.BACK, IN_KEY.FORWARD) * self.gasScale
-            self.power = math.clamp(self.power + addToVelocity, 0, self.maxGas)
-
-            -- Set velocity, with inertia
-            if self.power ~= 0 then
-                self.phys:addVelocity(self.drone:getUp() * self.power - self.phys:getVelocity() / 50)
-            end
-
-            -- Set propeller angular velocity
-            local angular = self.power * 100
-            self:setPropellerVelocity(angular)
-
-            -- Pitch: rate-based, driven by mouse Y delta received this tick
-            local pitchRate = self.mouseAngle.p
-
-            -- Roll: rate-based, driven by A/D
-            local rollRate = self:buttonAxis(IN_KEY.MOVELEFT, IN_KEY.MOVERIGHT) * 5
-
-            -- Yaw: direct angle tracking. self.mouseYaw is an absolute target yaw sent
-            -- by the client (accumulated from mouse X), independent of tick rate.
-            -- We steer the drone's current yaw toward that target each tick.
-            local currentYaw = self.drone:getAngles().y
-            local yawError = math.angleDifference(self.mouseYaw or currentYaw, currentYaw)
-
-            local angle = Angle(pitchRate, 0, rollRate)
-            local angvel = angle:getQuaternion():getRotationVector() * 4
-            -- Yaw correction applied along the drone's local up axis
-            angvel = angvel + self.drone:getUp() * (yawError * 3)
-            -- Damping so rotation settles instead of spinning forever
-            angvel = angvel - self.phys:getAngleVelocity() / 5
-
-            self.phys:addAngleVelocity(angvel)
-
-            self.mouseAngle = Angle()
-            hook.run("FPVDroneThink", self)
-        else
-            self.driver = nil
-        end
+    -- Damage in water and losing controls
+    if self.drone:getWaterLevel() >= 2 then
+        self.drone:applyDamage(1, self.drone, self.drone)
+        return
     end
+
+    if not self.driver or not isValid(self.driver) or not self.driver:isAlive() then
+        self.driver = nil
+        return
+    end
+
+    -- Throttle control (unchanged)
+    local addToVelocity = self:buttonAxis(IN_KEY.BACK, IN_KEY.FORWARD) * self.gasScale
+    self.power = math.clamp(self.power + addToVelocity, 0, self.maxGas)
+    if self.power ~= 0 then
+        self.phys:addVelocity(self.drone:getUp() * self.power - self.phys:getVelocity() / 50)
+    end
+    self:setPropellerVelocity(self.power * 100)
+
+    ---- Angular control (modified) ----
+    local sensitivityYaw   = 4    -- adjust to change yaw speed
+    local sensitivityPitch = 4    -- adjust to change pitch speed
+    local rollSensitivity  = 5    -- adjust for A/D roll speed
+    local rollStabGain     = 2    -- higher = more aggressive roll correction
+
+    -- Mouse inputs (this frame’s accumulated delta)
+    local mousePitch = self.mouseAngle.p   -- up/down
+    local mouseYaw   = self.mouseAngle.y   -- left/right
+
+    -- Manual roll from A and D keys
+    local rollInput = self:buttonAxis(IN_KEY.MOVELEFT, IN_KEY.MOVERIGHT) * rollSensitivity
+
+    -- Roll stabilisation: measure current roll and compute correction
+    local currentRoll = self.drone:getAngles().r      -- degrees
+    local rollError   = 0 - currentRoll               -- we want roll = 0
+    local rollCorrection = rollError * rollStabGain   -- angular velocity around forward
+
+    -- Drone’s local axes in world coordinates
+    local right   = self.drone:getRight()
+    local forward = self.drone:getForward()
+
+    -- Build desired world‑space angular velocity
+    local angVel = Vector(0, 0, mouseYaw * sensitivityYaw)            -- yaw (world up)
+    angVel = angVel + right   * (mousePitch * sensitivityPitch)       -- pitch (local right)
+    angVel = angVel + forward * (rollInput + rollCorrection)          -- roll (local forward)
+
+    -- Damping: subtract a fraction of the current angular velocity
+    local currentAngVel = self.phys:getAngleVelocity()   -- world‑space
+    local finalAngVel   = angVel - currentAngVel / 5
+
+    self.phys:addAngleVelocity(finalAngVel)
+
+    -- Clear the mouse delta for the next frame
+    self.mouseAngle = Angle()
+
+    hook.run("FPVDroneThink", self)
+end
 
 
     ---Set driver of drone
