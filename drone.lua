@@ -336,7 +336,6 @@ else
         render.createRenderTarget("noise")
         local id = drone:entIndex()
         local sw, sh, center
-        local accumulatedYaw = 0
 
         hook.add("RenderOffscreen", "FPVDroneRender", function()
             noiseRenderTarget()
@@ -401,13 +400,13 @@ else
         end)
 
         hook.add("MouseMoved", "FPVDroneAnglesMovement", function(x, y)
-    if !center or !sw or !sh then return end
-
-    net.start("MouseStream" .. tostring(id))
-    net.writeInt((y / center.y) * 90, 8)   -- pitch delta
-    net.writeInt((x / center.x) * -90, 8)  -- yaw delta (negated for correct direction)
-    net.send()
-end)
+            if !center or !sw or !sh then return end
+            net.start("MouseStream" .. tostring(id))
+            net.writeInt((y / center.y) * 90, 8)   -- pitch delta
+            net.writeInt((x / center.x) * -90, 8)  -- yaw delta (negated for correct direction)
+            net.send()
+        end)
+    end   -- <-- this 'end' was MISSING (closes createHud)
 
     local function removeHud()
         hook.remove("RenderOffscreen", "FPVDroneRender")
@@ -416,16 +415,13 @@ end)
         render.destroyRenderTarget("noise")
     end
 
-
     net.receive("DroneOn", function()
         net.readEntity(function(drone)
             createHud(drone)
         end)
     end)
 
-
     net.receive("DroneOff", function()
         removeHud()
     end)
-end
-end
+end   -- <-- only ONE 'end' here, to close the 'if SERVER then...' block
