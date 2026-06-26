@@ -1,0 +1,51 @@
+function Drone:Think()
+    if self.drone:getWaterLevel() >= 2 then
+        self.drone:applyDamage(1, self.drone, self.drone)
+        return
+    end
+    if not self.driver or not isValid(self.driver) or not self.driver:isAlive() then
+        self.driver = nil
+        return
+    end
+
+    -- Throttle (unchanged)
+    local addToVelocity = self:buttonAxis(IN_KEY.BACK, IN_KEY.FORWARD) * self.gasScale
+    self.power = math.clamp(self.power + addToVelocity, 0, self.maxGas)
+    if self.power ~= 0 then
+        self.phys:addVelocity(self.drone:getUp() * self.power - self.phys:getVelocity() / 50)
+    end
+    self:setPropellerVelocity(self.power * 100)
+
+    -- ===== Angular control (gimbal‑lock free) =====
+    local yawSensitivity   = 4
+    local pitchSensitivity = 4
+    local rollSensitivity  = 5
+    local rollStiffness    = 2
+
+    local mousePitch = self.mouseAngle.p
+    local mouseYaw   = self.mouseAngle.y
+    self.mouseAngle = Angle()
+
+    local rollInput = self:buttonAxis(IN_KEY.MOVELEFT, IN_KEY.MOVERIGHT) * rollSensitivity
+
+    local droneRight   = self.drone:getRight()
+    local droneForward = self.drone:getForward()
+    local worldUp      = Vector(0, 0, 1)
+
+    -- Roll error using manual dot product
+    local dot = droneRight.x * worldUp.x + droneRight.y * worldUp.y + droneRight.z * worldUp.z
+    local rollErrorDeg = math.deg(math.asin(math.clamp(dot, -1, 1)))
+    local rollCorrection = -rollErrorDeg * rollStiffness
+
+    -- Build desired angular velocity (world space)
+    local angVel = Vector(0, 0, mouseYaw * yawSensitivity)
+    angVel = angVel + droneRight * (mousePitch * pitchSensitivity)
+    angVel = angVel + droneForward * (rollInput + rollCorrection)
+
+    local currentAngVel = self.phys:getAngleVelocity()
+    local finalAngVel = angVel - currentAngVel / 5
+
+    self.phys:addAngleVelocity(finalAngVel)
+
+    hook.run("FPVDroneThink", self)
+end
