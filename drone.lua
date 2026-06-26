@@ -153,8 +153,8 @@ if SERVER then
 
             -- ...and mouse coordinates
             net.receive("MouseStream" .. index, function()
-                obj.mouseAngle = Angle(net.readInt(8), 0, 0) -- pitch delta, applied per tick
-                obj.mouseYaw = net.readFloat()                -- absolute yaw target, persists across ticks
+    obj.mouseAngle = Angle(net.readInt(8), net.readInt(8), 0)
+end)                -- absolute yaw target, persists across ticks
             end)
         end
 
@@ -267,7 +267,7 @@ if SERVER then
 
     -- Calculate angular velocity to reach the target orientation (same method as original)
     local deltaAngle = targetAng - curAng
-    local angVel = deltaAngle:getQuaternion():getRotationVector() * sensitivity*3
+    local angVel = deltaAngle:getQuaternion():getRotationVector() * sensitivity
     angVel = angVel - self.phys:getAngleVelocity() / 5
 
     self.phys:addAngleVelocity(angVel)
@@ -402,23 +402,13 @@ else
         end)
 
         hook.add("MouseMoved", "FPVDroneAnglesMovement", function(x, y)
-            if !center or !sw or !sh then return end
+    if !center or !sw or !sh then return end
 
-            -- Pitch stays a per-event rate value
-            local pitchDelta = (y / center.y) * 90
-
-            -- Yaw accumulates so the drone tracks absolute mouse position over time,
-            -- instead of resetting each event. Sensitivity controls how far one
-            -- full screen-width mouse movement turns the drone, in degrees.
-            local sensitivity = 90
-            accumulatedYaw = accumulatedYaw - (x / center.x) * sensitivity
-
-            net.start("MouseStream" .. tostring(id))
-            net.writeInt(pitchDelta, 8)
-            net.writeFloat(accumulatedYaw)
-            net.send()
-        end)
-    end
+    net.start("MouseStream" .. tostring(id))
+    net.writeInt((y / center.y) * 90, 8)   -- pitch delta
+    net.writeInt((x / center.x) * -90, 8)  -- yaw delta (negated for correct direction)
+    net.send()
+end)
 
     local function removeHud()
         hook.remove("RenderOffscreen", "FPVDroneRender")
