@@ -237,7 +237,10 @@ if SERVER then
         self.driver = nil
         return
     end
-
+if self.driver:keyDown(IN_KEY.RELOAD) then
+        self:death()
+        return
+    end
     -- Throttle (unchanged)
     local addToVelocity = self:buttonAxis(IN_KEY.BACK, IN_KEY.FORWARD) * self.gasScale
     self.power = math.clamp(self.power + addToVelocity, 0, self.maxGas)
