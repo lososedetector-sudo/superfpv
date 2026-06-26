@@ -267,7 +267,7 @@ if SERVER then
 
     -- Calculate angular velocity to reach the target orientation (same method as original)
     local deltaAngle = targetAng - curAng
-    local angVel = deltaAngle:getQuaternion():getRotationVector() * sensitivity
+    local angVel = deltaAngle:getQuaternion():getRotationVector() * sensitivity*3
     angVel = angVel - self.phys:getAngleVelocity() / 5
 
     self.phys:addAngleVelocity(angVel)
