@@ -265,21 +265,16 @@ if SERVER then
     local droneForward = self.drone:getForward()
     local worldUp      = Vector(0, 0, 1)
 
-    -- Roll error: how much the drone’s right vector is tilted out of the horizontal plane.
-    -- Ideally, droneRight should be perpendicular to worldUp (dot product = 0).
-    -- We use the arcsin of the dot product to get an angle error in radians, then convert to deg.
+    -- Roll error: how much the drone’s right vector is tilted out of the horizontal plane
     local rollErrorDeg = math.deg(math.asin(math.clamp(droneRight:Dot(worldUp), -1, 1)))
-    -- If A/D is held, the desired roll is zero relative to this input? Actually, with
-    -- manual roll we want a constant roll rate, not absolute angle. So we keep the
-    -- correction term that pushes roll to 0, and add the manual roll rate afterwards.
-    local rollCorrection = -rollErrorDeg * rollStiffness   -- negative: if right is up, correct downwards
+    local rollCorrection = -rollErrorDeg * rollStiffness   -- pushes roll back to 0
 
-    -- Build the desired angular velocity vector (world space)
+    -- Build desired angular velocity (world space)
     local angVel = Vector(0, 0, mouseYaw * yawSensitivity)            -- yaw (world up)
     angVel = angVel + droneRight * (mousePitch * pitchSensitivity)    -- pitch (local right)
     angVel = angVel + droneForward * (rollInput + rollCorrection)     -- roll (local forward)
 
-    -- Damping: subtract a fraction of the current angular velocity
+    -- Damping
     local currentAngVel = self.phys:getAngleVelocity()
     local finalAngVel = angVel - currentAngVel / 5
 
