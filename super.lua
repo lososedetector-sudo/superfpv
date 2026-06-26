@@ -246,44 +246,30 @@ if SERVER then
     end
     self:setPropellerVelocity(self.power * 100)
 
-    -- ===== Angular control (gimbal‑lock free) =====
-    local yawSensitivity   = 4      -- how fast mouse left/right turns
-    local pitchSensitivity = 4      -- how fast mouse up/down tilts
-    local rollSensitivity  = 5      -- A/D roll rate
-    local rollStiffness    = 2      -- how strongly roll is corrected
+    -- Sensitivity
+    local sensitivity = 4
+    local rollSensitivity = 5
 
-    -- Mouse delta (this frame’s accumulated input)
-    local mousePitch = self.mouseAngle.p   -- up/down
-    local mouseYaw   = self.mouseAngle.y   -- left/right
-    self.mouseAngle = Angle()              -- reset for next frame
+    -- Mouse delta (pitch, yaw)
+    local mouseDelta = self.mouseAngle   -- Angle(pitch, yaw, 0)
+    self.mouseAngle = Angle()
 
-    -- Manual roll from A / D
+    -- Manual roll from A/D
     local rollInput = self:buttonAxis(IN_KEY.MOVELEFT, IN_KEY.MOVERIGHT) * rollSensitivity
 
-    -- World‑space axes of the drone
-    local droneRight   = self.drone:getRight()
-    local droneForward = self.drone:getForward()
-    local worldUp      = Vector(0, 0, 1)
+    -- Current drone angles
+    local curAng = self.drone:getAngles()
 
-    -- Roll error: how much the drone’s right vector is tilted out of the horizontal plane.
-    -- Ideally, droneRight should be perpendicular to worldUp (dot product = 0).
-    -- We use the arcsin of the dot product to get an angle error in radians, then convert to deg.
-    local rollErrorDeg = math.deg(math.asin(math.clamp(droneRight:Dot(worldUp), -1, 1)))
-    -- If A/D is held, the desired roll is zero relative to this input? Actually, with
-    -- manual roll we want a constant roll rate, not absolute angle. So we keep the
-    -- correction term that pushes roll to 0, and add the manual roll rate afterwards.
-    local rollCorrection = -rollErrorDeg * rollStiffness   -- negative: if right is up, correct downwards
+    -- Target orientation: apply mouse pitch/yaw, then force roll to be exactly the manual input (absolute roll)
+    local targetAng = curAng + mouseDelta
+    targetAng.r = rollInput   -- rollInput is the desired absolute roll (when no key, it’s 0 → stabilises)
 
-    -- Build the desired angular velocity vector (world space)
-    local angVel = Vector(0, 0, mouseYaw * yawSensitivity)            -- yaw (world up)
-    angVel = angVel + droneRight * (mousePitch * pitchSensitivity)    -- pitch (local right)
-    angVel = angVel + droneForward * (rollInput + rollCorrection)     -- roll (local forward)
+    -- Calculate angular velocity to reach the target orientation (same method as original)
+    local deltaAngle = targetAng - curAng
+    local angVel = deltaAngle:getQuaternion():getRotationVector() * sensitivity
+    angVel = angVel - self.phys:getAngleVelocity() / 5
 
-    -- Damping: subtract a fraction of the current angular velocity
-    local currentAngVel = self.phys:getAngleVelocity()
-    local finalAngVel = angVel - currentAngVel / 5
-
-    self.phys:addAngleVelocity(finalAngVel)
+    self.phys:addAngleVelocity(angVel)
 
     hook.run("FPVDroneThink", self)
 end
