@@ -247,34 +247,31 @@ if SERVER then
     self:setPropellerVelocity(self.power * 100)
 
     -- ===== Angular control (gimbal‑lock free) =====
-    local yawSensitivity   = 4      -- how fast mouse left/right turns
-    local pitchSensitivity = 4      -- how fast mouse up/down tilts
-    local rollSensitivity  = 5      -- A/D roll rate
-    local rollStiffness    = 2      -- how strongly roll is corrected
+    local yawSensitivity   = 4
+    local pitchSensitivity = 4
+    local rollSensitivity  = 5
+    local rollStiffness    = 2
 
-    -- Mouse delta (this frame’s accumulated input)
-    local mousePitch = self.mouseAngle.p   -- up/down
-    local mouseYaw   = self.mouseAngle.y   -- left/right
-    self.mouseAngle = Angle()              -- reset for next frame
+    local mousePitch = self.mouseAngle.p
+    local mouseYaw   = self.mouseAngle.y
+    self.mouseAngle = Angle()
 
-    -- Manual roll from A / D
     local rollInput = self:buttonAxis(IN_KEY.MOVELEFT, IN_KEY.MOVERIGHT) * rollSensitivity
 
-    -- World‑space axes of the drone
     local droneRight   = self.drone:getRight()
     local droneForward = self.drone:getForward()
     local worldUp      = Vector(0, 0, 1)
 
-    -- Roll error: how much the drone’s right vector is tilted out of the horizontal plane
-    local rollErrorDeg = math.deg(math.asin(math.clamp(droneRight:Dot(worldUp), -1, 1)))
-    local rollCorrection = -rollErrorDeg * rollStiffness   -- pushes roll back to 0
+    -- Roll error using manual dot product
+    local dot = droneRight.x * worldUp.x + droneRight.y * worldUp.y + droneRight.z * worldUp.z
+    local rollErrorDeg = math.deg(math.asin(math.clamp(dot, -1, 1)))
+    local rollCorrection = -rollErrorDeg * rollStiffness
 
     -- Build desired angular velocity (world space)
-    local angVel = Vector(0, 0, mouseYaw * yawSensitivity)            -- yaw (world up)
-    angVel = angVel + droneRight * (mousePitch * pitchSensitivity)    -- pitch (local right)
-    angVel = angVel + droneForward * (rollInput + rollCorrection)     -- roll (local forward)
+    local angVel = Vector(0, 0, mouseYaw * yawSensitivity)
+    angVel = angVel + droneRight * (mousePitch * pitchSensitivity)
+    angVel = angVel + droneForward * (rollInput + rollCorrection)
 
-    -- Damping
     local currentAngVel = self.phys:getAngleVelocity()
     local finalAngVel = angVel - currentAngVel / 5
 
