@@ -427,5 +427,5 @@ end)
     net.receive("DroneOff", function()
         removeHud()
     end)
-end)
 end
+end)
